@@ -1,15 +1,16 @@
 \begin{figure*}[t!]
     \centering
     % \renewcommand{\arraystretch}{1.2}
-    \begin{tabular}{l|lllll}
+    \begin{tabular}{l|llll}
      \toprule
-     \textbf{Feature} & \textbf{Initiating endpoint} & \textbf{Scope of removal} & \textbf{Replacement} & \textbf{Timing} & \textbf{P5} \\ 
+     \textbf{Feature} & \textbf{Initiating endpoint} & \textbf{Deletion scope} & \textbf{Deletion visibility} & \textbf{Time interval}\\ 
      \midrule
-    Close conversation & Sender and recipient-side & A & A & A & A \\
-    Unsend message & Sender-side & Local & A & A & A \\
-    Delete message & Sender and recipient-side & Global & A & A & A \\
-    Timed message & A & A & A & A & A \\
+    Chat deletion & Endpoint-independent & Local & Silent & Instantaneous \\
+    Local message deletion & Endpoint-independent & Local & Silent & Instantaneous \\
+    Unsending message & Sender-side & Full & Visible & Instantaneous \\
+    View-once media & Recipient-side & Full & Visible &  Delay \\
+    Dissappearing messages & Endpoint-independent & Full & Visible & Delay \\
     \bottomrule
 \end{tabular}
-\caption{Example of common message deletion features, and how they fit within our systematization of Section~\ref{sec:e2ee-deletion-systematization}.}\label{fig:deletion-features-systematization-examples}
+\caption{Example of message deletion features, and how they fit within our systematization of Section~\ref{sec:e2ee-deletion-systematization}.}\label{fig:deletion-features-systematization-examples}
 \end{figure*}
