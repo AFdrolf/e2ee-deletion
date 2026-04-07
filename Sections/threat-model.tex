@@ -1,0 +1,62 @@
+\section{Threat Model}\label{sec:threat-model}
+With the context from the preceding section, we now begin our study of deletion in E2EE messaging.\andres{Weird sentence; the section before is already part of it. Clarify.} To do so, however, a necessary first step is to specify the \emph{threat model} relevant to our setting, that is, the capabilities and conditions that we assume of adversaries attempting to retrieve deleted messages. We thus present our threat model in this section, which we motivate from real-world threats and adversarial settings.
+
+\paragraph{Basic architecture of E2EE applications.} In order to articulate our threat model, we first overview the general architecture of E2EE messaging applications, which will allow us to explain how our threat model slots in this broader system. Note that we purposefully omit many details, focusing on what is most relevant to our setting. 
+
+We depict a typical architecture for an E2EE messaging application in Figure~\ref{}. 
+In this setting, users exchange messages via service-operated servers, with the key security goal being that not even a malicious or compromised server can read nor modify the plaintext messages. To achieve this, messages are routed using an E2EE protocol (e.g., the Signal protocol~\cite{signal-docs}), which encrypts and decrypts messages at the endpoints with keys that are not known by the server. Users participate in this protocol via \emph{application clients} installed in their devices, which abstract internal application operations (e.g., cryptographic operations) behind the client's user interface (UI). Notice that E2EE security thus (implicitly or explicitly) assumes that client software is trusted~\cite{fabrega2025mitigating}.
+
+The client stores all relevant user information (such as sent or received messages, local settings, etc.) in the device's internal storage; we refer to this stored information as the user's \emph{application state}, and denote it by $\appState$. For example, for Android applications, a common structure for $\appState$ consists of a primary SQLite database (serialized in some way) for most application information, and an auxiliary BLOB store for larger binary files (e.g., exchanged media)~\cite{spahn2014pebbles,fabrega2025mitigating}. The client communicates with the device's storage through some model-dependent API (e.g., SQL commands for SQLite) to read from and write to $\appState$. Individual application-level operations often result in various storage-level transactions from the client to $\appState$. For example, sending a message may simultaneously create a new row in a table of messages, modify a row in a table of active conversations, update numerous local variables, etc.
+
+To support various features, the client may periodically \emph{export} (a function of) $\appState$ outside the user's device. For example, the application may support E2EE backups~\cite{signal-e2ee-backups,whatsapp-e2ee-backups}, which store an encrypted copy of $\appState$ in some cloud, allowing users to restore their information (e.g., chat history) should they lose access to their device.
+
+\paragraph{Overview of threat model.}Let us now explain our threat model. For clarity of presentation, we keep our discussion here conceptual, in order to focus on the main ideas. Looking ahead, we will provide a formal definition of security in Section~\ref{sec:security-definition}.
+
+\andres{Maybe move intuition before architecture? And then say let us unpack this.}
+Intuitively, the security guarantees that we want for deletion features is that triggering deletion of a message indeed makes the message irrecoverable, even from adversaries with full access to a device. There has been extensive research in the general problem of secure deletion~\cite{naor2001anti,reardon2013sok,garg2020formalizing}, in contexts different from ours. Intuitively, how these goals translate to E2EE messaging is that whatever one can learn about messages from the application's ``logical'' view (i.e., what is displayed in the UI) is equivalent to what one can learn about messages from the application's ``physical'' view (i.e., serialized files in the device's internal storage). If an E2EE application implements message deletion securely, then deleted messages (which are not present in the UI) should not be recoverable from the device's physical state. If, however, the implementation is not secure, straggling fragments of deleted messages may be recoverable from having direct access to storage.
+
+\andres{Clarify that, as we will see later on, this may arise from straggling deletion (a la forensics), or from subtle application logic such as deduplication.}
+
+
+Let us unpack this in more detail. At a high level, our threat model is underpinned by one main ingredient: We consider an adversary that has \emph{gained access to a user's local application state $\appState$}, from which it tries to recover information about messages that were deleted prior to their access. 
+% In particular, this means the adversary has access to the client's \emph{physical} state, such as the serialized database file in storage.
+That is, let $t_0$ be the time when a message deletion feature is triggered and $t_1 > t_0$ be the time when some message $M$ is deleted (as mentioned in Section~\ref{sec:e2ee-deletion-systematization}, different features may incur different time delays). The adversary gains direct access to $\appState$ at some time $t_2 > t_1$. By inspecting $\appState$, the adversary tries to learn some information about $M$.
+
+Access to $\appState$ can arise from, most notably, access to the user's device; or from access to some external location where $\appState$ has been exported to.\footnote{The latter may need to be coupled with device access as well, in order to recover the secret key used to encrypt the application state.} In practice, the way in which one can obtain $\appState$ depends on the specific platform and application in question; we show a few examples in Section~\ref{sec:attacks}.
+
+\paragraph{Real-world concerns.} A priori, it is not obvious why secure deletion is even a relevant goal for E2EE messaging to begin with: If someone has access to a device, can they not just observe (and, say, screenshot) messages to begin with? However, as our threat model argues, the entire point of secure deletion is that \andres{Literature on user perceptions}.
+
+In particular, our threat model reflects two distinct categories of concerns, which tie back to our systematization from Section~\ref{sec:e2ee-deletion-systematization}.
+
+The first are \emph{receiver-side adversaries}. In this setting, an honest sender deletes a message, and wishes to hide it from the recipient.
+
+The second are \emph{receiver-side adversaries}.
+
+
+\andres{Compelled access / Law enforcement, close-proximity adversary / abusive partner, etc. See Kenny's talk for these terms.}
+
+
+
+% A priori, it is not obvious why secure deletion is even a relevant security goal to begin with: If a user has access to an unlocked device, they can just observe all message to begin with? 
+
+
+\paragraph{Out-of-scope attacks.} We explicitly leave some attacks outside our threat model.
+
+First, we assume the adversary does not tamper with client code. As mentioned earlier, this is inherent to all E2EE threat models; if client code is not trusted, all confidentiality guarantees are lost to begin with (e.g., an adversary can install a backdoor that directly leaks all sent and received messages).
+
+Second, to keep our scope focused, we limit attention to \emph{message} deletion. One could also consider \emph{metadata} deletion, for instance, that it should not be possible to know that two parties communicated after their chat has been closed. We leave this as an interesting direction for future work.
+
+Lastly, we stress that, in this work, we consider adversaries at the \emph{application level}, and not the \emph{cryptographic-protocol level}. Deletion at the protocol level is an orthogonal threat model, which bears relationship with well-studied security notions such as deniable encryption~\cite{} and post-compromise security~\cite{}.
+
+
+% \paragraph{E2EE applications} We depict a typical architecture for an E2EE application in Figure~\ref{}, which we overview below.
+
+% We denote by $\user$ a user of an E2EE application service $\service$. The user owns a device with an application client for $\service$ installed, denoted by $\client$, which allow $\user$ to exchange content with other users of the application. This content is relayed as encrypted messages through service-operated servers, in accordance with some application-specific E2EE protocol, such as the Signal protocol~\cite{signal-doubleratchet,signal-x3dh}. 
+
+% The client $\client$ stores all relevant user information (e.g., sent and received messages, local settings, etc.) in the device's internal storage; we refer to this stored information as $\user$'s \emph{application state}, and denote it by $\state$. For example, for Android applications, a common structure for $\state$ consists of a primary SQLite database for most application information, and an auxuliary BLOB store for larger binary files (e.g., exchanged images)~\cite{spahn2014pebbles,fabrega2025mitigating}. The structure of $\state$ is governed by the application's \emph{data model}, or schema, which defines the information that is stored and how it is arranged. For example, for an SQLite database, the data model defines all tables and columns of the database.
+
+
+% The client $\client$ communicates with the device's storage through some model-dependent API (e.g., SQL commands) to read from and write to $\state$. Individual application-level operations often result in various storage-level transactions from $\client$ to $\state$. For example, sending a message may simultaneously create a new row in a $\messagesTable$, update rows in $\recipientsTable$ and $\conversationsTable$ tables, etc.
+
+% To support various features, $\client$ may periodically \emph{export} $\state$ outside $\user$'s device. For example, the application may support backups, which requires storing a snapshot of $\state$ in some cloud. Or the application may allow for support multiple user devices, which requires propagating $\state$ from $\client$ to a new device whenever $\user$ registers one. Such exports generally involve $\client$ encrypting $\state$ locally using an application-specific symmetric encryption scheme and a per-user secret key (which is sometimes derived from a user password), and uploading the resulting ciphertext to some location outside the device (the cloud, another of $\user$'s devices, etc).
+

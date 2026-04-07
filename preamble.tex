@@ -1,0 +1,57 @@
+% \AtBeginDocument{%
+%   \providecommand\BibTeX{{%
+%     Bib\TeX}}}
+% \setcopyright{acmlicensed} %% CCS: DO NOT REMOVE
+% \copyrightyear{2018} %% CCS: DO NOT REMOVE
+% \acmYear{2018} %% CCS: DO NOT REMOVE
+% \acmDOI{XXXXXXX.XXXXXXX} %% CCS: DO NOT REMOVE
+% \acmConference[Conference acronym 'XX]{Make sure to enter the correct
+%   conference title from your rights confirmation email}{June 03--05,
+%   2018}{Woodstock, NY}  %% CCS: DO NOT REMOVE
+% \acmISBN{978-1-4503-XXXX-X/2018/06}  %% CCS: DO NOT REMOVE
+
+% \AtBeginDocument{%
+%   \providecommand\BibTeX{{%
+%     Bib\TeX}}}
+% \setcopyright{} %% CCS: DO NOT REMOVE
+% \copyrightyear{} %% CCS: DO NOT REMOVE
+% \acmYear{} %% CCS: DO NOT REMOVE
+% \acmDOI{} %% CCS: DO NOT REMOVE
+% \acmConference[]{}{}{}  %% CCS: DO NOT REMOVE
+% \acmISBN{}  %% CCS: DO NOT REMOVE
+
+\makeatletter
+\renewcommand{\paragraph}{%
+  \@startsection{paragraph}{4}%
+  {\z@}{1.2ex \@plus 1ex \@minus .2ex}{-1em}%
+  {\normalfont\normalsize\bfseries}%
+}
+\makeatother
+
+
+%---------------------------------------------------------------------
+% PACKAGES
+%---------------------------------------------------------------------
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+
+
+%---------------------------------------------------------------------
+% MACROS
+%---------------------------------------------------------------------
+\newcommand{\andres}[1]{{\small\textsf{\color{green}{[Andres: {#1}]}}}}
+
+
+
+%---------------------------------------------------------------------
+% NOTATION
+%---------------------------------------------------------------------
+
+\newcommand{\user}{\mathsf{U}}
+\newcommand{\client}{\mathsf{C}}
+\newcommand{\service}{\mathsf{S}}
+\newcommand{\appState}{st}
+\newcommand{\messagesTable}{\texttt{messages}}
+\newcommand{\recipientsTable}{\texttt{recipients}}
+\newcommand{\conversationsTable}{\texttt{conversations}}

@@ -1,0 +1,12 @@
+syntax: glob
+*.aux
+*.log
+*.synctex.gz
+*.blg
+*.pdf
+*.out
+*.fdb_latexmk
+*.fls
+*.bbl
+.DS_Store
+main.synctex(busy)

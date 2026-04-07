@@ -1,0 +1,48 @@
+\section{Message Deletion in the Wild}\label{sec:attacks}
+Equipped with our threat model, we now turn to the motivating question behind this work: Do real-world applications safely delete messages? We explore this question through the lens of two case-study applications, WhatsApp and Signal. Our security analysis reveals an unsatisfactory landscape: For both applications, we are able to recover deleted messages.
+
+\paragraph{Attacks overview}
+
+\paragraph{Methodology and experimental setup}
+
+\paragraph{Architecture of WhatsApp and Signal}
+
+\paragraph{Message deletion features in WhatsApp and Signal}
+
+\paragraph{Recovery of application state}
+
+\paragraph{FTS index}
+
+\subsection{WhatsApp}
+
+\paragraph{Architecture.} \andres{Start by saying we focus on Android but believe our attacks generalize. Or maybe say this in a methodology paragraph.}
+
+\paragraph{Message deletion features.}
+
+\andres{Here, explain recovery of application state.}
+\andres{First, an overview of general deletion. What table changes. Then what are issues with this.}
+
+\paragraph{Vulnerability \#1: write-ahead log.}
+
+\paragraph{Vulnerability \#2: FTS index.}
+
+\paragraph{Vulnerability \#3: view-once media.}
+
+\paragraph{Vulnerability \#4: attachment deduplication.}
+
+\paragraph{Vulnerability \#5: message reactions.}
+
+\paragraph{Vulnerability \#6: pinned messages.}
+
+\subsection{Signal}
+
+\paragraph{Architecture.}
+
+\paragraph{Message deletion features.}
+
+\paragraph{Vulnerability \#1: freelist pages}
+
+\paragraph{Vulnerability \#2: attachment deduplication.}
+
+
+

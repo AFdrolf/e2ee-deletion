@@ -1,0 +1,19 @@
+\section{Formal Treatment of E2EE Message Deletion}\label{sec:security-definition}
+Our findings from the preceding section show that, like in many other settings, deletion is a challenge in the E2EE setting. Therefore, in this section we initiate the formal treatment of message deletion in E2EE applications. \andres{Revise this. Say we introduce a formal model. Which then initiates the formal treatment of message deletion in the E2EE setting.}
+
+\paragraph{Model for E2EE application clients.} In order to define message deletion, we first need to a formal primitive for E2EE application clients upon which to base our definition. We draw inspiration from the ``E2EE encrypted exports client'' primitive from~\cite{fabrega2025mitigating}, but adapt it to our setting. While application clients can be complex, we use the strategy of~\cite{fabrega2025mitigating}, and narrow our focus to the minimal components of clients needed to capture our attacks.
+
+We define an E2EE application client $\client$ as a triple of stateful algorithms.
+
+
+\paragraph{Attempt \#1: history independence.}
+
+\paragraph{Attempt \#2: leakage-based definition} \andres{Maybe say we try with explicit leakage function first, but this gets very complicated. This is similar to prior work in other contexts, so we use their approach of a ``relative'' security definition.}
+
+\paragraph{Property-based security.}
+
+\paragraph{Formal analysis of our attacks}
+\andres{How our formalism recovers our attacks.}
+
+
+\andres{Somewhere say that this allows us to formalize analyze attacks, as well as evaluating the security of defenses. Indeed, looking ahead we do this in section 7 with our proposed mitigations.}

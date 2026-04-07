@@ -1,0 +1,46 @@
+\documentclass[sigconf]{acmart}
+\input{preamble}
+
+\title{(In)Secure Message Deletion in End-to-End Encrypted Applications}
+% Schrödinger's Message: (In)Secure Message Deletion in End-to-End Encrypted Applications
+% Now You See Me, Now You Don't? (In)Secure Message Deletion in End-to-End Encrypted Applications
+
+% \author{Andrés Fábrega \\
+% Cornell University}
+
+%---------------------------------------------------------------------
+
+\begin{document}
+%---------------------------------------------------------------------
+
+\input{Sections/abstract}
+
+% \begin{CCSXML}
+% <ccs2012>
+% <concept>
+% <concept_id>10002978.10002979</concept_id>
+% <concept_desc>Security and privacy~Cryptography</concept_desc>
+% <concept_significance>500</concept_significance>
+% </concept>
+% </ccs2012>
+% \end{CCSXML}
+
+% \ccsdesc[500]{Security and privacy~Cryptography}
+
+% \keywords{end-to-end encrypted applications; secure deletion}
+
+\maketitle
+\input{Sections/introduction}
+\input{Sections/e2ee-deletion-features}
+\input{Sections/threat-model}
+\input{Sections/case-study}
+\input{Sections/security-definition}
+\input{Sections/mitigations}
+\input{Sections/discussion}
+\input{Sections/related-work}
+\input{Sections/conclusion}
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

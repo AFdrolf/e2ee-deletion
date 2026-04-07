@@ -1,0 +1,50 @@
+\section{Deletion Features in E2EE Messaging}\label{sec:e2ee-deletion-systematization}
+We begin with a broad overview of message deletion in E2EE applications, by providing a \emph{systematization of message deletion features} that distills their core properties and differences. Looking ahead, the taxonomy we introduce in this section will serve to motivate our forthcoming threat model.
+
+\paragraph{What are message deletion features?} Before presenting our systematization, we first define what we mean by a message deletion feature. While seemingly trivial, not all features that hide messages from the user interface fall under the umbrella of ``deletion'', so we first specify the criteria for what is in scope of our work.
+
+At a high level, we define a \emph{message deletion feature} as any application functionality that is \emph{intended} to make messages \emph{unrecoverable}. By ``unrecoverable'', we mean that \emph{no other application-level feature allows for retrieving messages once they have been deleted}. Notice that our definition is based on what a feature is \emph{designed} to provide (hence our usage of the term ``intended''); whether messages are \emph{actually} recoverable or not depends on the (security of the) specific implementation. (Defining the \emph{security guarantees} of deletion features is the focus of Section~\ref{sec:security-definition}.)
+
+For example, the most common message deletion feature is \emph{chat deletion},\footnote{In this work, we use ``chat'' and ``conversation'' interchangeably to refer to the list of all individual messages exchanged between two or more users.} which erases all messages in a conversation and removes the conversation from the list of active chats. In addition, many applications (e.g., WhatsApp and Signal) provide more fine-grained message deletion features that allow for removal of individual messages. These include \emph{local deletion}, which allows users to remove any (sent or received) message from their view of the conversation; as well as \emph{unsending}, which allows the sender of a message to remove it for both them and the recipient(s), generally replacing it with a placeholder string (e.g., ``this message was deleted'' in WhatsApp~\cite{whatsapp-delete-message}). 
+
+While chat deletions, local message deletions, and unsending are triggered manually by users, many applications additionally provide features for \emph{automatic} deletion of messages. These include \emph{disappearing messages}, which allow users to specify a lifetime duration for messages, after which they are removed from the chat for all parties. Another example is \emph{view-once media}, which allows users to send media attachments (pictures, videos, etc.) that can only be opened once by recipients.
+
+% (In Appendix~\ref{}, we provide detailed context of how these features work, including walkthroughs of how to use them in two case-study applications.).
+
+
+As mentioned earlier, whether a feature constitutes deletion or not is relative to its intended behavior, and so it is ultimately application-specific. Often, features have consistent goals across applications; for instance, as far as we are aware, no E2EE application supports recovering messages for any of the features mentioned above. For example, WhatsApp explicitly states that ``when you delete a chat, it can't be undone''~\cite{whatsapp-delete-chat}, and that when a message is unsent ``there's no way to get it back''~\cite{whatsapp-delete-message}. However, in other cases, features may have different goals in different applications. For example, many applications allow for \emph{editing} messages; in some applications, users can read the history of edits (e.g., in Signal~\cite{signal-edit-message}), while others only show the latest version (e.g., in WhatsApp~\cite{whatsapp-edit-message}). So, edits would be a deletion feature in the latter but not the former.
+
+
+% Generally, these are designed to make messages unrecoverable. For example, WhatsApp explicitly states that ``when you delete a chat, it can't be undone''~\cite{whatsapp-delete-chat}, and that when a message is unsent ``there's no way to get it back''~\cite{whatsapp-delete-message}. We do note, however, that whether a feature constitutes deletion or not is ultimately application-specific, since the same feature could have different goals in different applications. For example, many applications allow for \emph{editing} messages; in some, users can read the history of edits (e.g., in Signal~\cite{signal-edit-message}), while others show only the latest version (e.g., in WhatsApp~\cite{whatsapp-edit-message}). So, the latter would be a deletion feature but not the former.
+
+
+On the other hand, our definition of message deletion excludes features such as, for example, \emph{archiving} conversations: while this hides conversations from the list of active chats, users can unarchive (and, thus, reinstate) them later on. Indeed, WhatsApp explicitly clarifies that ``archiving a chat doesn't delete the chat''~\cite{whatsapp-archive-chat}. As a second non-example, features for hiding chats in a private (often password-locked) section of the UI (e.g., WhatsApp's ``locked chats'' feature~\cite{whatsapp-locked-chat}) are also not in scope of our definition.
+
+\paragraph{Systematization of message deletion features.} While message deletion features all have similar goals, their specific functioning varies. So, we now introduce an \emph{analytical framework} that systematizes the main properties of deletion features. Our goal is to highlight the key design choices and differences among such features, to facilitate their systematic understanding.
+
+
+In a nutshell, we identify four main properties of message deletion features: (1) which users can trigger the feature, (2) the endpoint(s) where deletion take place, (3) whether the message is replaced or silently removed, and (4) how long after feature activation deletion takes place. So, together, these properties logically capture the ``who'', ``where'', ``what'', and ``when'' of a deletion feature. We explain each in turn below, and show examples of deletion features and how they map onto our systematization in Table~\ref{fig:deletion-features-systematization-examples}. While, as mentioned earlier, the specific implementation of a feature (and, thus, how it fits within our framework) may vary across applications, we analyze them in the context of our two-case study applications, WhatsApp and Signal, which are representative of how they tend to be implemented in the ecosystem more broadly.
+
+\input{Figures/deletion-features-framework-examples}
+
+\emph{Property \#1: initiating endpoint.} The first property defines \emph{which endpoint} of a message can \emph{trigger the feature}. A feature can be \emph{sender-based}, meaning that only the sender of a message can trigger deletion (e.g., unsending a message); or it can be \emph{recipient-based}, where an action by the recipient triggers deletion (e.g., view-once media); or it can be \emph{endpoint-independent}, and can thus be triggered by any party (e.g., local message deletion).
+
+\emph{Property \#2: scope of deletion.} The second property defines whether a feature \emph{propagates deletion} beyond the initiating endpoint. A feature can have \emph{local} scope, meaning that it only modifies the view of the user that triggers deletion (e.g., chat deletion); or it can have \emph{full} scope, meaning that it modifies the view of all users in the conversation (e.g., disappearing messages).
+
+
+\emph{Property \#3: replacement behavior.} The third property defines whether deletion leaves any \emph{certification} in the user interface. A feature can be \emph{silent}, removing a message without any visual indication, as if the message had never been sent (e.g., local message deletion); or it can \emph{replace} messages with a placeholder string, indicating that deletion took place but without revealing the content of the message (e.g., unsending).
+
+\emph{Property \#4: time interval.} Lastly, the fourth property specifies the \emph{amount of time} between when the feature is triggered and when messages are deleted. A feature can be \emph{instantaneous}, meaning that messages are deleted the moment the feature is triggered (e.g., unsending); or it can have a \emph{timed delay} which retains messages for a defined period of time before they are removed (e.g., timed disappearing messages).
+
+In addition to these four properties, there are other behaviors that may vary across message deletion features. For example, features may vary in the amount of time after a message is sent in which they can be invoked (e.g., for unsending, 24 hours on Signal~\cite{signal-delete-message} and 48 hours on WhatsApp~\cite{whatsapp-delete-message}), or in whether they operate on bulk or individual messages (e.g., chat deletion vs local message deletion), etc. However, we focus on the four properties above as they are the most directly relevant to deletion security.
+
+\andres{Say that for simplicity we focus on single-device setting. Maybe say in next section.}
+
+% - Endpoint where deletion is triggered
+% - Endpoint where message should be removed
+% - Trace or no trace (e.g., unsend)
+% - Delay/timing
+% - Individual or bulk (but less relevant for us).
+% - Quote reply (less relevant for us)
+
+% Interplay with message replies.
