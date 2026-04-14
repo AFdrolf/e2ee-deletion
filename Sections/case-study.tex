@@ -1,42 +1,81 @@
 \section{Message Deletion in the Wild}\label{sec:attacks}
-Equipped with our threat model, we now turn to the motivating question behind this work: Do real-world applications safely delete messages? We explore this question through the lens of two case-study applications, WhatsApp and Signal. Our security analysis reveals an unsatisfactory landscape: For both applications, we are able to recover deleted messages.
+Having introduced our threat model, we now turn to the motivating question behind this work: do real-world applications safely delete messages? We explore this question through the lens of two case-study applications, WhatsApp and Signal. We reverse engineered implementation details of their message deletion features, and performed a security analysis in the context of our threat model. Our analysis reveals an unsatisfactory landscape: we show numerous vulnerabilities in both applications (six in WhatsApp, and two in Signal), allowing for recovery of deleted messages across all deletion features.
 
-\paragraph{Attacks overview}
+\paragraph{Methodology and experimental setup} We performed our analysis of both applications using Android devices, with the latest version at the time of each application installed.\footnote{Version 2.26.11.74 for WhatsApp, and \andres{TODO} for Signal.} (As we discuss later on, however, we believe our findings are general, and not Android-specific.) Similar to prior works on attacks against messaging applications~\cite{fabrega2024injection}, we used emulated devices~\cite{android-emulator-1} for ease of experimentation, allowing us to easily reset the phones if needed and test under numerous setups and conditions. This was sufficient for our purposes, since emulated devices copy both the software \emph{and} hardware of physical devices~\cite{android-emulator-2}, and thus application files (which are the key component of our threat model) are identical as on real devices; indeed, the main use case of emulated devices is for testing applications during development, to be later run on physical end-user devices~\cite{android-emulator-1}.
 
-\paragraph{Methodology and experimental setup}
+Recall that deletion security considers an adversary with full, physical access to a device, which allows them to obtain the local application state. In general, access to a device is sufficient for access to its local files (e.g., by performing a full memory dump or device backup). For specific device types, however, there are often easier ways to navigate their file system. For example, in Android, a simple solution is to enable root access~\cite{sun2015android} on the device, which gives unfettered access to its file system. We opt for this approach in our experiments, but note that our forthcoming security analyses are agnostic to the method used to inspect the device's content. In particular, root access allows us to use Android Debug Bridge~\cite{adb} to explore the device's file system via a command-line interface.
 
-\paragraph{Architecture of WhatsApp and Signal}
+With this setup, at a high-level our methodology had a simple recipe: we would send messages from one device to another, record a snapshot of the application files, ...
 
-\paragraph{Message deletion features in WhatsApp and Signal}
+\andres{This required a combination of logical-level changes (e.g., the SQL statements that change) and physical level changes (e.g., serialized binaries)}
 
-\paragraph{Recovery of application state}
+\subsection{Analysis of WhatsApp}
+We now proceed to our security analysis, starting with WhatsApp. They offer various message deletion features, including the examples mentioned in Section~\ref{sec:e2ee-deletion-systematization}: chat deletions, local message deletions, unsends, view-once media, and disappearing messages. Our analysis of these features uncovered a total of six security issues, encompassing the full range of application content: text-based messages, exchanged media attachments, and even \emph{interactions} with messages (e.g., removed reactions and unpinned messages)\andres{Maybe talk about reactions in Section 2}. Thus, put together, our findings allow for general recovery of deleted messages. As we will see, some of our findings require no assumptions about the content of messages, while others rely on (realistic) assumptions. We show a summary of our findings in Table~\ref{}, which we detail in the rest of this section.
 
-\paragraph{FTS index}
 
-\subsection{WhatsApp}
+\paragraph{Architecture overview.} Before presenting our vulnerabilities, we first provide necessary context by summarizing the structure of WhatsApp's application state. We provide a general overview here, and fill in additional details as needed during our vulnerability descriptions that follow. 
 
-\paragraph{Architecture.} \andres{Start by saying we focus on Android but believe our attacks generalize. Or maybe say this in a methodology paragraph.}
+As reported by prior work~\cite{fabrega2024exploiting}, WhatsApp stores information about sent and received messages in a single SQLite database, which is serialized using SQLite's standard database file format~\cite{sqlite-database-file-format}. The schema for this database is complex, involving (at the time of writing) 285 tables. For our purposes, the most relevant is the ``$\messagesTable$'' table, where each row corresponds to a single (sent or received) message, storing its text content, timestamp, conversation it is part of, and other metadata. This table acts as a central hub, being referenced by numerous other tables that store additional message metadata. (We discuss details of $\messagesTable$ and other relevant tables later in the section.) For convenience, moving forward we use shorthand $\database$ to refer to this database.
 
-\paragraph{Message deletion features.}
+For messages that contain media (e.g., images or videos), WhatsApp stores these files as separate binaries in a dedicated BLOB store. Metadata about media files is then stored in the $\mediaTable$ table in $\database$, where each row stores information about a single file, including the primary key in $\messagesTable$ for its corresponding message, the path to the file's location in storage, its size, etc. Similar to the $\messagesTable$ table, $\mediaTable$ acts as the central hub for media information, and is referenced by auxiliary tables that store more fine-grained media metadata.
 
-\andres{Here, explain recovery of application state.}
-\andres{First, an overview of general deletion. What table changes. Then what are issues with this.}
+In addition to the above, the application state contains numerous other files. However, these are not relevant to our purposes, so we omit description of them for brevity.
 
-\paragraph{Vulnerability \#1: write-ahead log.}
+We reversed-engineered how this application state (and, in particular database $\database$) is updated as a result of WhatsApp's various message deletion features, following the general methodology mentioned at the start of the section. We now proceed to explain our findings, ordered by the type of content they target (and, thus, enable recovery of): text, media, and other.
 
-\paragraph{Vulnerability \#2: FTS index.}
+\paragraph{Vulnerability \#1: text recovery.} We start with our most general finding, where we show how an adversary can recover the \emph{(unordered) set of words} contained in any deleted (sent or received) message, irrespective of the message deletion feature that was used. We depict an example setting in Figure~\ref{}. At a high level, this vulnerability stems the way in which deletion is implemented in WhatsApp's \emph{search index}, which allows for recovery of deleted messages by inspection of the serialized index content. This security issue is fairly technical, relying on many low-level details of WhatsApp's index and how it is encoded in database $\database$. As such, due to space constraints, we provide a description of the main ideas here, and defer full details to Appendix~\ref{}.
 
-\paragraph{Vulnerability \#3: view-once media.}
+\smallskip\textbf{\emph{WhatsApp's search index.}}
+WhatsApp uses SQLite's FTS4 module~\cite{sqlite-fts4} to implement full-text search on all sent and received messages, which provides support for efficient search. An FTS4 index is logically structured as an \emph{inverted} index, mapping \emph{terms} to the \emph{documents} in which they appear. In WhatsApp, terms (i.e., index entries) roughly correspond to individual words,\footnote{More precisely, in WhatsApp, the terms in message $m$ are the words that result after casting into $m$ all lowercase, and replacing all non-alphanumeric characters with whitespace.} and documents to the messages in which they are contained; messages are represented by a \emph{message identifier}, which are assigned sequentially (and are also the primary key for the message's row in the $\messagesTable$ table). Thus, the index has an individual entry for every word across all messages, mapping to a list of all messages in which the word is present. For example, if a user has (in order) messages ``Hi Alice'' and ``Hi Bob'', their index would contain entries ``(hi, $[1,2]$)'', ``(alice, $[1]$)'', and ``(bob, $[2]$)''.
+
+
+
+Like all other message information, the index is stored within database $\database$. The specific way in which the index is encoded and arranged within $\database$ is complex (see Appendix~\ref{}).
+
+
+
+
+However, index erasures are only \emph{logical}: instead of removing content from the index, deletions create new \emph{tombstone entries}, which instruct future search queries to omit deleted messages from the results. However, this means that deleted messages are still present in the physical index in storage, and can thus be recovered via direct inspection.
+
+
+
+Like all other message information, the index is stored within database $\database$. The specific way in which the index is encoded and arranged within $\database$ is complex.
+
+
+However, index erasures are only \emph{logical}: instead of removing content from the index, deletions create new \emph{tombstone entries}, which instruct future search queries to omit deleted messages from the results. However, this means that deleted messages are still present in the physical index in storage, and can thus be recovered via direct inspection.
+
+
+
+
+\paragraph{Vulnerabilities \#2 and \#3: media recovery.}
+
+
+
+\andres{OLD below.}
+
+\paragraph{Vulnerability \#1: write-ahead logging.} The first security issue stems from the \emph{journal mode} used for the SQLite database $\database$. In general, a database's journal mode is the mechanism by which new transactions are committed to the database. WhatsApp uses SQLite's \emph{write-ahead logging (WAL)} mode, whereby new changes are first stored in a \emph{second} file, until enough changes accumulate at which point they are written to the main database~\cite{sqlite-journal-mode,sqlite-wal}.
+
+As a result of WAL logging, there is a short window of time in which $\database$ is out of sync: any transactions that arise from deleted messages are in the WAL file, but not in $\database$. As a result, inspecting $\database$ immediately after a deletion feature is triggered allows for. 
+
+
+
+\paragraph{Vulnerability \#3: view-once media.} We turn to media files. 
 
 \paragraph{Vulnerability \#4: attachment deduplication.}
 
 \paragraph{Vulnerability \#5: message reactions.}
 
-\paragraph{Vulnerability \#6: pinned messages.}
+\paragraph{Vulnerability \#6: pinned messages.} Lastly, we conclude with the simplest of our findings.
 
-\subsection{Signal}
+This thus reveals to an adversary which messages used to be pinned. This could allow identifying potentially noteworthy or important messages.
+
+\subsection{Analysis of Signal}
+We now turn to Signal.
 
 \paragraph{Architecture.}
+
+\paragraph{Recovery of application state}
+
 
 \paragraph{Message deletion features.}
 
