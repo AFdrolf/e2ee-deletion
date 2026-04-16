@@ -10,7 +10,7 @@ With this setup, at a high-level our methodology had a simple recipe: we would s
 \andres{This required a combination of logical-level changes (e.g., the SQL statements that change) and physical level changes (e.g., serialized binaries)}
 
 \subsection{Analysis of WhatsApp}
-We now proceed to our security analysis, starting with WhatsApp. They offer various message deletion features, including the examples mentioned in Section~\ref{sec:e2ee-deletion-systematization}: chat deletions, local message deletions, unsends, view-once media, and disappearing messages. Our analysis of these features uncovered a total of six security issues, encompassing the full range of application content: text-based messages, exchanged media attachments, and even \emph{interactions} with messages (e.g., removed reactions and unpinned messages)\andres{Maybe talk about reactions in Section 2}. Thus, put together, our findings allow for general recovery of deleted messages. As we will see, some of our findings require no assumptions about the content of messages, while others rely on (realistic) assumptions. We show a summary of our findings in Table~\ref{}, which we detail in the rest of this section.
+We now proceed to our security analysis, starting with WhatsApp. They offer various message deletion features, including the examples mentioned in Section~\ref{sec:e2ee-deletion-systematization}: chat deletions, local message deletions, unsends, view-once media, and disappearing messages. Our analysis of these features uncovered a total of six security issues, encompassing the full range of application content: text-based messages, exchanged media attachments, and even \emph{interactions} with messages (e.g., removed reactions and unpinned messages)\andres{Maybe talk about reactions in Section 2}. Thus, put together, our findings allow for general recovery of deleted messages. As we will see, some of our findings require no assumptions about the content of messages, while others rely on (realistic) assumptions. We show a summary of our findings in Table~\ref{fig:vulnerabilities-summary}, which we detail in the rest of this section.
 
 
 \paragraph{Architecture overview.} Before presenting our vulnerabilities, we first provide necessary context by summarizing the structure of WhatsApp's application state. We provide a general overview here, and fill in additional details as needed during our vulnerability descriptions that follow. 
@@ -23,41 +23,51 @@ In addition to the above, the application state contains numerous other files. H
 
 We reversed-engineered how this application state (and, in particular database $\database$) is updated as a result of WhatsApp's various message deletion features, following the general methodology mentioned at the start of the section. We now proceed to explain our findings, ordered by the type of content they target (and, thus, enable recovery of): text, media, and other.
 
-\paragraph{Vulnerability \#1: text recovery.} We start with our most general finding, where we show how an adversary can recover the text content of any deleted (sent or received) message, irrespective of the message deletion feature that was used. We depict an example setting in Figure~\ref{}. At a high level, this vulnerability stems the way in which deletion is implemented in WhatsApp's \emph{search index}, which allows for recovery of deleted messages by inspection of the serialized index content. This security issue is fairly technical, relying on many low-level details of WhatsApp's index and how it is encoded in database $\database$. As such, due to space constraints, we provide a description of the main ideas here, and defer full details to Appendix~\ref{}.
+\andres{Generalize to all attachments, highlighting media}
+
+
+\paragraph{Vulnerability \#1: text recovery.} We start with our most general finding, where we show how an adversary can recover the text of any deleted (sent or received) message, irrespective of the message deletion feature that was used. We depict an example setting in Figure~\ref{}. At a high level, this vulnerability stems the way in which deletion is implemented in WhatsApp's \emph{search index}. As we will see, this allows recovery of deleted messages by inspecting the serialized index. This security issue is fairly technical, relying on many low-level details of WhatsApp's index and how it is encoded in database $\database$. So, due to space constraints, we highlight the main ideas here, and defer full details to Appendix~\ref{}.
 
 \smallskip\textbf{\emph{WhatsApp's search index.}} 
-To support efficient search, WhatsApp uses SQLite's FTS4 module~\cite{sqlite-fts4} to implement full-text search on all sent and received messages. An FTS4 index is logically structured as an \emph{inverted} index, mapping \emph{terms} to the \emph{documents} (and their positions therein) in which they appear. In WhatsApp, terms (i.e., index entries) roughly correspond to individual words,\footnote{More precisely, in WhatsApp, the terms in message $m$ are the words that result after casting into $m$ all lowercase, and replacing all non-alphanumeric characters with whitespace.} and documents to the messages in which they are contained; messages are represented by a \emph{message identifier}, which are assigned sequentially (and are also the primary keys in the $\messagesTable$ table). Thus, the index has an individual entry for every word across all messages, mapping to a list of all messages (and their poosition within the message) in which the word is present. For example, if a user has (in order) messages ``Hi Alice'' and ``Hi Bob'', their index would map ``hi'' to $[(1, 1), (2, 1)]$, ``alice'' to $[(1, 2)]$, and ``bob'' to $[(2, 2)]$.
+To support efficient search, WhatsApp uses SQLite's FTS4 module~\cite{sqlite-fts4} to implement full-text search on all sent and received messages. An FTS4 index is logically structured as an \emph{inverted} index, mapping \emph{terms} to the \emph{documents} (and their positions therein) in which they appear. In WhatsApp, terms (i.e., index entries) roughly correspond to individual words,\footnote{More precisely, in WhatsApp, the terms in message $m$ are the words that result after casting into $m$ all lowercase, and replacing all non-alphanumeric characters with whitespace.} and documents to the messages in which they are contained; messages are represented by a \emph{message identifier}, which are assigned sequentially (and are also the primary keys in the $\messagesTable$ table). Thus, the index has an individual entry for every word across all messages, mapping to a list of all messages (and their position within the message) in which the word is present. For example, if a user has (in order) messages ``Hi Alice'' and ``Hi Bob'', their index would map ``hi'' to $[(1, 1), (2, 1)]$, ``alice'' to $[(1, 2)]$, and ``bob'' to $[(2, 2)]$.
 
-Like all other message information, the index is stored in database $\database$. The specific way in which an FTS4 index is encoded and arranged within a database is complex. For clarity of presentation, we provide a simplified treatment here, and refer readers to 
+Like all other message information, the index is stored in database $\database$. The way in which an FTS4 index is encoded and arranged within a database is complex; for clarity, we provide a simplified treatment here, and refer readers to 
 Appendix~\ref{} and~\cite{sqlite-fts4} for details.
 At a high-level, an FTS4 index is organized as a collection of multiple B-trees, with term-document mappings (i.e., word-message mappings in WhatsApp) stored in the leaves. Concretely, a leaf contains a sequence of term and \emph{document list} (doclist) pairs, where a doclist consists of document-position pairs (e.g., $[(1, 1), (2, 1)]$ in our example above). Term-doclist pairs within a leaf are ordered lexicographically by term, and document-position pairs within a doclist are ordered by document id.
 See Figure~\ref{} for an example. 
 
-The B-trees are organized into levels. Whenever a message is added to the index, a new level-0 B-tree is created, containing only the terms in this message, each mapping to the message's identifier (i.e., its primary key in $\messagesTable$) and its position in it. That is, let $m = (w_1, \dots, w_q)$ be the $n$-th (sent or received) message, where $w_i$ are its terms, in order. This results in a level-0 B-tree containing (only) pairs $(w_1, [(n, 1)]), (w_2, [(n, 2)]), \dots, (w_q, [(n, q)])$, arranged lexicographically by $w_i$.\footnote{If there are two $w_i$ and $w_j$ such that $w_i = w_j$ and $i < j$, then there is only a single pair for them of the form $(w_i, [(n, i), [n, j]])$.} After a certain number of level-0 B-trees are present (16, in the case of WhatsApp), they are merged into a level-1 B-tree, containing the term-doclist pairs of all 16 level-0 B-trees, which are then deleted. In particular, if a term is present in multiple level-0 B-trees, it is stored as single entry in the level-1 B-tree, with all document-position pairs in the term's (single) doclist. This progression continues: in general, after 16 level $i$ B-trees, they are replaced by a new level $i+1$ B-tree. Therefore, as the index grows, it consists of multiple B-trees of different levels and sizes, which are traversed during a search query. This means that a term, while unique inside each B-tree, may be repeated across different trees, which get consolidated when/if these trees merge.
+The B-trees are organized into levels. Whenever a message is added to the index, a new level-0 B-tree is created, containing only the terms in this message, each mapping to the message's identifier (i.e., its primary key in $\messagesTable$) and its position in it. That is, let $m = (w_1, \dots, w_q)$ be the $n$-th (sent or received) message, where $w_i$ are its terms, in order. This results in a level-0 B-tree containing (only) pairs $(w_1, [(n, 1)]), (w_2, [(n, 2)]), \dots, (w_q, [(n, q)])$, arranged lexicographically by $w_i$.\footnote{If there are two $w_i$ and $w_j$ such that $w_i = w_j$ and $i < j$, then there is only a single pair for them of the form $(w_i, [(n, i), [n, j]])$.} After a certain number of level-0 B-trees are present (16, in the case of WhatsApp), they are merged into a level-1 B-tree, containing the term-doclist pairs of all 16 level-0 B-trees, which are then deleted. In particular, if a term is present in multiple level-0 B-trees, it is stored as single entry in the level-1 B-tree, with all document-position pairs in the term's (single) doclist.\andres{Previous sentence candidate to remove.} This progression continues: in general, after 16 level $i$ B-trees are created, they are replaced by a new level $i+1$ B-tree. So, as the index grows, it consists of multiple B-trees of different levels and sizes, which are traversed during a search query. This means that a term, while unique within a B-tree, may be repeated across different trees, which get consolidated when/if these trees merge.\andres{Previous sentence candidate to remove.}
 
 The nodes of all B-trees are stored in the $\messagesIndexSegdirTable$ and $\messagesIndexSegmentsTable$ tables of $\database$---root notes in the former, and all other nodes in the latter. Thus, scanning these tables allows inspecting the physical encoding of the index. The maximum size of a node is the database's page size (4096 bytes in WhatsApp), and so lower-level B-trees often require just a single root node.
 
 \smallskip\textbf{\emph{Text deletion.}}
-Application-level message deletions trigger a cascade of changes in $\database$. These are generally consistent across all message deletion features. First, the message's text is removed from the $\messagesTable$ table. For silent features (property \#3 in our systematization) such as local message deletion, the row is deleted entirely; and for visible features such as unsending messages, the row is kept, but the cell storing its text content is emptied, replaced by a NULL value. Notice that, for silent features, inspecting  $\messagesTable$ reveals additional information beyond the user interface: 
+Application-level deletions trigger a cascade of changes in $\database$. These changes are generally consistent across all message deletion features. First, the message's text is removed from the $\messagesTable$ table. For silent features (property \#3 in our systematization) such as local deletion, the row is deleted entirely; and for visible features such as unsending messages, the row is kept, but the cell storing its text content is emptied, replaced by a NULL value. Notice that, for silent features, the $\messagesTable$ table thus leaks information: row deletions result in a \emph{skip} in primary keys, revealing that \emph{some} message was deleted (but not which or in which chat). That is, if the $i$-th message is deleted, the table will have a row with primary key $i-1$ followed by one with $i+1$.
+
+While identifying that deletion occurred can be sensitive in many contexts, our focus is on message recovery. In addition to the $\messagesTable$ table, the second prominent change is that deletion features trigger a deletion request to the index. However, deletions in FTS4 are only \emph{logical}: instead of \emph{erasing} content, deletions create new \emph{tombstone entries}. Concretely, deleting the $n$-th message $m = (w_1, \dots, w_q)$ creates a \emph{new} index entry containing $(w_1, [(n, 0)]), (w_2, [(n, 0)]), \dots, (w_q, [(n, 0)])$. As usual, this entry is stored as a new level-0 B-tree, stored in $\messagesIndexSegdirTable$ (and $\messagesIndexSegmentsTable$, if the message is long and does not fit in a single root node). Such an entry encodes that terms $w_i$ appear in ``position 0'' of message $n$, which instructs future search queries to omit $m$ from the search results for any $w_i$.
+
+Deletions in the search index are thus only at the application-level: both the original index entry (when the message was sent or received) and the new tombstone entry are still present in the physical index in storage, and can thus be recovered via direct inspection of the B-tree nodes in the $\messagesIndexSegdirTable$ and $\messagesIndexSegmentsTable$ tables.
+We show an example in Figure~\ref{}, where we show how the index evolves as a result of message delivery and deletion.
+
+\smallskip\textbf{\emph{Recovered information.}} Index deletion itself allows an adversary to recovery the contents of deleted messages. However, how this can be pieced together to learn more info depends on a few conditions.
+
+The exact information that an adversary can learn from index remnants depends on a few conditions.
+
+\andres{If before merge, learns the exact message. If after, the adversary learns the unordered set. Which is still bad and can be recostructed possibly via language models. While this is already bad, if, visible, learns chat too. If silent, does not learn which chat (since the message number cannot be mapped to the specific chat in messages).}
+
+\andres{Generalize to all attachments, highlighting media}
+\paragraph{Vulnerabilities \#2 and \#3: media recovery.} We now turn to media files.
 
 
-However, index erasures are only \emph{logical}: instead of removing content from the index, deletions create new \emph{tombstone entries}, which instruct future search queries to omit deleted messages from the results. However, this means that deleted messages are still present in the physical index in storage, and can thus be recovered via direct inspection.
+The first vulnerability is general. We now show to findings here: one for a particular feature that requires no assumptions, and one for all other deletion features but requiring assumptions about deleted content.
 
-
-
-Like all other message information, the index is stored within database $\database$. The specific way in which the index is encoded and arranged within $\database$ is complex.
-
-
-However, index erasures are only \emph{logical}: instead of removing content from the index, deletions create new \emph{tombstone entries}, which instruct future search queries to omit deleted messages from the results. However, this means that deleted messages are still present in the physical index in storage, and can thus be recovered via direct inspection.
-
-
-
-
-\paragraph{Vulnerabilities \#2 and \#3: media recovery.}
+\smallskip\textbf{\emph{Deletion of view-once media.}}
 
 \smallskip\textbf{\emph{File deduplication.}}
 
 \smallskip\textbf{\emph{Media deletion.}}
+
+\andres{Say security should not be only for unique images, since sending duplicate files is not uncommon. This has been exploited by many prior works in other contexts, and indeed there is a reason why this feature exists to begin with!}
+
 
 \andres{OLD below.}
 
@@ -66,10 +76,6 @@ However, index erasures are only \emph{logical}: instead of removing content fro
 As a result of WAL logging, there is a short window of time in which $\database$ is out of sync: any transactions that arise from deleted messages are in the WAL file, but not in $\database$. As a result, inspecting $\database$ immediately after a deletion feature is triggered allows for. 
 
 
-
-\paragraph{Vulnerability \#3: view-once media.} We turn to media files. 
-
-\paragraph{Vulnerability \#4: attachment deduplication.}
 
 \paragraph{Vulnerability \#5: message reactions.}
 
