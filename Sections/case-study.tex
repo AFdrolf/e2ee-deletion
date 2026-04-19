@@ -1,5 +1,5 @@
 \section{Message Deletion in the Wild}\label{sec:attacks}
-Having introduced our threat model, we now turn to the motivating question behind this work: do real-world applications safely delete messages? We explore this question through the lens of two case-study applications, WhatsApp and Signal. We reverse engineered implementation details of their message deletion features, and performed a security analysis in the context of our threat model. Our analysis reveals an unsatisfactory landscape: we show numerous vulnerabilities in both applications (six in WhatsApp, and two in Signal), allowing for recovery of deleted messages across all deletion features.
+Having introduced our threat model, we now turn to the motivating question behind this work: do real-world applications safely delete messages? We explore this question through the lens of two case-study applications, WhatsApp and Signal. We reverse engineered implementation details of their message deletion features, and performed a security analysis in the context of our threat model. Our analysis reveals an unsatisfactory landscape: we show numerous vulnerabilities in both applications (six in WhatsApp, and two in Signal), allowing for recovery of deleted messages across all deletion features. As we will see, some of the security issues we find are simple, resulting from improper cleanup of database tables; while others are more subtle, leveraging complex application-level logic spanning multiple parts of the application state. 
 
 \paragraph{Methodology and experimental setup} We performed our analysis of both applications using Android devices, with the latest version at the time of each application installed.\footnote{Version 2.26.11.74 for WhatsApp, and \andres{TODO} for Signal.} (As we discuss later on, however, we believe our findings are general, and not Android-specific.) Similar to prior works on attacks against messaging applications~\cite{fabrega2024injection}, we used emulated devices~\cite{android-emulator-1} for ease of experimentation, allowing us to easily reset the phones if needed and test under numerous setups and conditions. This was sufficient for our purposes, since emulated devices copy both the software \emph{and} hardware of physical devices~\cite{android-emulator-2}, and thus application files (which are the key component of our threat model) are identical as on real devices; indeed, the main use case of emulated devices is for testing applications during development, to be later run on physical end-user devices~\cite{android-emulator-1}.
 
@@ -23,9 +23,6 @@ In addition to the above, the application state contains numerous other files. H
 
 We reversed-engineered how this application state (and, in particular database $\database$) is updated as a result of WhatsApp's various message deletion features, following the general methodology mentioned at the start of the section. We now proceed to explain our findings, ordered by the type of content they target (and, thus, enable recovery of): text, media, and other.
 
-\andres{Generalize to all attachments, highlighting media}
-
-
 \paragraph{Vulnerability \#1: text recovery.} We start with our most general finding, where we show how an adversary can recover the text of any deleted (sent or received) message, irrespective of the message deletion feature that was used. We depict an example setting in Figure~\ref{}. At a high level, this vulnerability stems the way in which deletion is implemented in WhatsApp's \emph{search index}. As we will see, this allows recovery of deleted messages by inspecting the serialized index. This security issue is fairly technical, relying on many low-level details of WhatsApp's index and how it is encoded in database $\database$. So, due to space constraints, we highlight the main ideas here, and defer full details to Appendix~\ref{}.
 
 \smallskip\textbf{\emph{WhatsApp's search index.}} 
@@ -45,22 +42,35 @@ Application-level deletions trigger a cascade of changes in $\database$. These c
 
 While identifying that deletion occurred can be sensitive in many contexts, our focus is on message recovery. In addition to the $\messagesTable$ table, the second prominent change is that deletion features trigger a deletion request to the index. However, deletions in FTS4 are only \emph{logical}: instead of \emph{erasing} content, deletions create new \emph{tombstone entries}. Concretely, deleting the $n$-th message $m = (w_1, \dots, w_q)$ creates a \emph{new} index entry containing $(w_1, [(n, 0)]), (w_2, [(n, 0)]), \dots, (w_q, [(n, 0)])$. As usual, this entry is stored as a new level-0 B-tree, stored in $\messagesIndexSegdirTable$ (and $\messagesIndexSegmentsTable$, if the message is long and does not fit in a single root node). Such an entry encodes that terms $w_i$ appear in ``position 0'' of message $n$, which instructs future search queries to omit $m$ from the search results for any $w_i$.
 
-Deletions in the search index are thus only at the application-level: both the original index entry (when the message was sent or received) and the new tombstone entry are still present in the physical index in storage, and can thus be recovered via direct inspection of the B-tree nodes in the $\messagesIndexSegdirTable$ and $\messagesIndexSegmentsTable$ tables.
+Deletions in the search index are thus only at the application-level: both the original index entry (when the message was sent or received) and the new tombstone entry are still present in the physical index in storage, and can therefore be recovered via direct inspection of the B-tree nodes in the $\messagesIndexSegdirTable$ and $\messagesIndexSegmentsTable$ tables.
 We show an example in Figure~\ref{}, where we show how the index evolves as a result of message delivery and deletion.
 
-\smallskip\textbf{\emph{Recovered information.}} Index deletion itself allows an adversary to recovery the contents of deleted messages. However, how this can be pieced together to learn more info depends on a few conditions.
-
-The exact information that an adversary can learn from index remnants depends on a few conditions.
+It thus follows that, in general, by traversing the index, the adversary can lean all messages ever sent or received. In practice, an adversary can leverage this as follows. First, they identify a target deleted message they want to recover, and find its identifier $id$ in the $\messagesTable$ table (by identifying a skip in primary keys for silent features, and rows with NULL messages for visible features). Then, they find all B-trees in $\messagesIndexSegdirTable$ and $\messagesIndexSegmentsTable$ that contain the terms for $id$. 
 
 \andres{If before merge, learns the exact message. If after, the adversary learns the unordered set. Which is still bad and can be recostructed possibly via language models. While this is already bad, if, visible, learns chat too. If silent, does not learn which chat (since the message number cannot be mapped to the specific chat in messages).}
 
 \andres{Generalize to all attachments, highlighting media}
-\paragraph{Vulnerabilities \#2 and \#3: media recovery.} We now turn to media files.
+\paragraph{Vulnerabilities \#2-\#4: attachment recovery.} Now that we have shown how an adversary can recover text, we turn to attachment files, such as exchanged media, documents, etc. We show two vulnerabilities in this context. The first two target a particular feature, \emph{view-once media}, where we show how an adversary can learn sensitive information about media files \emph{after} they have been opened. The second vulnerability is general for all deletion features, but requires one assumption about the content of the deleted attachment: that the victim has exchanged at least one more \emph{copy} of it. As we unpack later on, this is a realistic assumption, and has led to attacks in other contexts different from ours. 
+
+\smallskip\textbf{\emph{View-once media.}} We start with the two vulnerabilities. Recall from Section~\ref{sec:e2ee-deletion-systematization} that view-once media allows sending media files that disappear after they have been opened once by the recipient. 
+This feature inherently targets exchange of sensitive media, and thus has a number of additional protections built in, e.g., preventing screenshots, forwards, saves, etc~\cite{}. 
+
+Inside the application state, as usual, sending or receiving view-once media creates a new row in the $\messagesTable$ and $\mediaTable$ tables of $\database$. Among other metadata, the latter stores a \emph{checksum} of the file under its $\fileHashColumn$ column, which is the Base64-encoded SHA256 of the media file. Furthermore, view-once files additionally create a new row in the $\mediaThumbnailTable$ table, which maps message IDs to ``thumbnails'', which are compressed representations of the original file; 
+see Figure~\ref{} for an example.
+
+Opening a view-once file (should should render it unrecoverable) leads to two notable changes within $\database$, which give rise to our two security issues. First, the corresponding row in the $\mediaTable$ table is updated to erase various cells. However, notably the $\fileHashColumn$ column is preserved, and so the adversary is able to recover the SHA256 checksum of the view-once file.
+A file's checksum is sensitive information, since it provides an ``oracle'' to test whether candidate files matched the view-once file.
+
+which can lead to fingerprinting attacks, 
 
 
-The first vulnerability is general. We now show to findings here: one for a particular feature that requires no assumptions, and one for all other deletion features but requiring assumptions about deleted content.
 
-\smallskip\textbf{\emph{Deletion of view-once media.}}
+
+
+First, as expected, the corresponding row in the $\messagesTable$ table is deleted. In, $\mediaThumbnailTable$, however, the corresponding row is 
+
+and $\mediaTable$. 
+
 
 \smallskip\textbf{\emph{File deduplication.}}
 
