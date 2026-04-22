@@ -8,7 +8,11 @@ Carrying over these ideas to our setting, the security goal for E2EE message del
 
 Referring to our systematization from Section~\ref{sec:e2ee-deletion-systematization}, our threat model reflects the guarantee that, after a message deletion feature is triggered by any endpoint (property \#1), an adversary that has access to any device within the feature's deletion scope (property \#2) any time after the message is removed (property \#4) should not be able to learn any information beyond what is revealed by the feature's visible information (property \#3). For instance, if a message is unsent, an adversary with access to the sender or recipient's device (and, thus, their local database of messages) should only be able to learn that a specific message was removed, but not its content.
 
-\paragraph{Motivating scenarios.} There are many natural scenarios in which one would want such privacy guarantees for message deletion features, and for them not to just as UI or storage cleanup. 
+\andres{Mention Burnbox for motivation!}
+
+\paragraph{Motivation.} There are many natural scenarios in which one would want such privacy guarantees for message deletion features, and for them not to just as UI or storage cleanup. 
+
+\andres{In a nutshell, without deletion security, we loose deniability in the face of device compromise.}
 
 For example, a sender may wish to remove an \emph{accidental message} before it is seen by the recipient: perhaps they sent it to the wrong person, or it contains a mistake, etc. As a second example, even if the messages are sent as intended, users may rely on deletion features to make \emph{sensitive messages} ephemeral and safeguard against future device accesses. This could involve exchange of private data (e.g., passwords or credit card numbers), information that could be legally compromising (e.g., whistleblowers, protest organizers, etc.), or discussing confidential information; for instance, in 2025, members of the U.S. government used Signal's disappearing messages feature for military planning~\cite{enwiki:1346011653}.
 

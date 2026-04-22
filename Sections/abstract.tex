@@ -1,13 +1,9 @@
 \begin{abstract}
-    A common component of modern end-to-end encrypted (E2EE) applications is that of \emph{deletion of messages}. Applications support this via a variety of features, such as erasing conversations, and recently via more advanced features such as unsending messages, dissappearing messages, etc. Despite the ubiquity of such features, however, message deletion in E2EE applications is poorly understood: Do these features actually erase messages? What security guarantees should we expect of such features?
+Modern end-to-end encrypted (E2EE) messaging applications offer a wide array of \emph{message deletion} features, such as unsending messages, closing conversations, view-once media, and more. 
+These features provide an extra layer of privacy beyond in-transit encryption, allowing users to hide sensitive messages even from adversaries who may gain access to their devices. Privacy of deleted messages can be critical in many settings, such as compelled device searches, known-adversary threat models, and more. Yet, despite its ubiquity, message deletion remains surprisingly understudied: we have little understanding of the security offered by such features in practice, let alone formal treatments of what their security \emph{should} mean.
 
-    This work initiates the formal study of message deletion in E2EE applications. 
-    - Landscape, threat model, etc.
-    - Attacks
-    - Definitions
+This work initiates the formal study of \emph{message deletion security} in E2EE applications. 
+We first investigate the security of message deletion in practice, using two leading E2EE applications as case studies: WhatsApp and Signal. Our analysis reveals an unsatisfactory landscape: we identify numerous security issues that enable recovery of deleted messages from a victim's client-side state, across multiple message types (text, attachments, and more), and affecting all their deletion features. These issues stem from general design patterns, common to both applications, and thus lead to higher-level lessons for E2EE application design.
 
-
-    Our analysis uncovers a broken ecosystem: We show attacks against all message deletion features in WhatsApp, allowing full recovery of deleted text messages, media attachments, and more. 
-
-    
+Our findings motivate that secure deletion poses a challenge for E2EE applications, and so solid foundations for its principled study are critical. We thus provide the first formal treatment of client-side deletion security for E2EE applications. We introduce syntax that models the components of E2EE clients relevant to deletion, and define security notions that formalize our privacy goals. We then exercise our formalism, and analyze both our identified vulnerabilities and proposed mitigations.
 \end{abstract}
