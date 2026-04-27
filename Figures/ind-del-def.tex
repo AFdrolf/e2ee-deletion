@@ -1,0 +1,22 @@
+\begin{figure}[t!]
+    \centering
+	\fhpages{0.20}
+	{
+		$\procedurev{\SecDef_{\client}^{\advA}}$ \\
+		$b \getsr \{0, 1\}$ \\
+		$b' \getsr \advA^{\RunOracle, \ChRunOracle}$ \\
+		$\creturn b' = b$ \medskip
+
+		$\procedurev{\RunOracle(\transcript)}$ \\
+		$\appState \getsr \client.\Run(\transcript)$ \\
+		$\creturn \appState$
+	}
+	{
+		$\procedurev{\ChRunOracle(\transcript_0, \transcript_1)}$ \\
+		$\cif \neg \transcript_0 \equiv_\client \transcript_1: \; \creturn \bot$ \\
+		$\appState \getsr \client.\Run(\transcript_b)$ \\
+		$\creturn \appState$
+	}
+  \caption{Deletion indistinguishable ($\SecDef$) security game for E2EE clients.}
+	\label{fig:ind-del-def}
+\end{figure}

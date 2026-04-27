@@ -1,19 +1,70 @@
 \section{Formal Treatment of E2EE Message Deletion}\label{sec:security-definition}
-Our findings from the preceding section show that, like in many other settings, deletion is a challenge in the E2EE setting. Therefore, in this section we initiate the formal treatment of message deletion in E2EE applications. \andres{Revise this. Say we introduce a formal model. Which then initiates the formal treatment of message deletion in the E2EE setting.}
+Our findings from the preceding section show that, like in many other areas, deletion security is a challenge in the E2EE setting. Therefore, in this section, we introduce a formal security model for deletion security of E2EE application clients. We provide syntax that captures the components of clients relevant to deletion, and define a security notion that formalizes our threat model and privacy goals. Then, we exercise our model by casting our vulnerabilities from Section~\ref{sec:attacks} as attacks against our security model.
 
-\paragraph{Model for E2EE application clients.} In order to define message deletion, we first need to a formal primitive for E2EE application clients upon which to base our definition. We draw inspiration from the ``E2EE encrypted exports client'' primitive from~\cite{fabrega2025mitigating}, but adapt it to our setting. While application clients can be complex, we use the strategy of~\cite{fabrega2025mitigating}, and narrow our focus to the minimal components of clients needed to capture our attacks.
+\paragraph{Primitive: deletion client.} We start by formalizing the primitive upon which to base our security definition. Since our focus is deletion security in end-user devices, our primitive will be \emph{client-centric}, ignoring application servers and other external system components. In particular, we use the client syntax of~\cite{fabrega2025mitigating} as a starting point, which we modify and extend to adapt to our setting. Like~\cite{fabrega2025mitigating}, we narrow our focus to the core components of clients that play a role in our threat model: sending and deleting messages. Formally, we define an \emph{E2EE client} $\client$ as a triple of stateful algorithms $\client = (\Init, \Send, \Delete)$ with the following syntax:
 
-We define an E2EE application client $\client$ as a triple of stateful algorithms.
+\begin{newitemize}
+    \item $\appState_0 \getsr \client.\Init()$: Initializes the client's state to a default starting state $\appState_0$ from a state space\footnote{All spaces in our primitive definition are subsets of $\{0, 1\}^*$.} $\appStateUniverse$.
+    \item $\appState_{i+1} \getsr \client.\Send(\appState_i, \userId_s, \{\userId_{r, 1}, \userId_{r, 2}, ...\}, \messageId, M)$: 
+    Processes sending message $M$ from message space $\messageUniverse$, with (unique) message identifier $\messageId \in \messageIdUniverse$, from sender $\userId_s$ to set of recipients $\{\userId_{r, 1}, \userId_{r, 2}, ...\}$. All $\userId$ are unique user identifiers from space $\userIdUniverse$, and we require that the ID for the client owner, denoted by $\userId_\client$, is either the sender or in the recipient set. Returns the updated state $\appState_{i+1} \in \appStateUniverse$ as a result.
+    \item $\appState_{i+1} \getsr \client.\Delete(\appState_i, \messageId, \deletionMetadata)$: Processes deletion of message with identifier $\messageId \in \messageIdUniverse$, in accordance with some (optional) deletion metadata $\deletionMetadata$ from space $\deletionMetadataUniverse$.
+\end{newitemize}
+We make a few brief remarks to provide more context on our primitive; see Appendix~\ref{} ƒor details, including a full example of real-world clients map to our syntax. 
+State $\appState$ corresponds to the (physical) application state, such a serialized database in storage. Identifiers $\userId$ and $\messageId$ are application-specific representations of users and messages in $\appState$, such as phone numbers for the latter and counters for the latter. Following other works (e.g.,~\cite{e2ee-cloud-storage,fabrega2025mitigating}), we model ``messages'' as encoding both their content and relevant metadata (e.g., timestamps) in $M$. Furthermore, we use $\Send$ as a single abstraction over all the ways in which users may interact (e.g., sending texts, attachments, etc.), which are disambiguated based on information encoded in $M$. Similarly, $\Delete$ is an abstraction over all deletion features. We encode feature-specific metadata in $\deletionMetadata$, such as the feature that triggered deletion, the time of deletion, etc. Finally, notice that $\Send$ and $\Delete$ are \emph{randomized} algorithms. This is because clients may process new messages or deletions non-deterministically, e.g., if parts of $\appState$ are encrypted.
+
+We define a \emph{transcript} $\transcript$ to be an ordered sequence of $\Send$ and $\Delete$ operations together with their non-state inputs. That is, each entry in $T$ is a tuple of the form $(\Send, \userId_s, \{\userId_1, \userId_2, ...\}, \messageId, M)$ or $(\Delete, \messageId, \deletionMetadata)$. Notice that a transcript induces a (probability distribution over) final state, by calling $\client.\Init()$ followed by running each operation in $\transcript$ in order. We denote this via algorithm $\appState \getsr \client.\Run(\transcript)$, defined formally in Figure~\ref{}.
+
+As discussed in earlier sections, our security notions will also require modelling a user's ``logical'' application content, that is, the set of exchanged messages displayed in the client's UI (non-deleted messages, and placeholder strings for visible deletion features). We model this as a mapping $\content : \mathcal{P}(\userIdUniverse) \to (\messageUniverse \cup \{\bot\})^*$ from sets of user IDs (representing conversations) to tuples of message and a special deletion symbol $\bot$ (representing exchanged messages therein). For example, ...
+
+Like $\appState$, mapping $\content$ is implicitly defined by $\Send$ and $\Delete$ operations, since these represent the flow of messages: a $\Send$ operation appends $M$ to the list for key (i.e., conversation) of user IDs $\{\userId_s, \userId_{r, 1}, \userId_{r, 2}, ...\}$; and a $\Delete$ operation either removes $M$ for silent features, or replaces it with $\bot$ for visible features (since, recall, these leave a placeholder string in the UI). For example, ...
+
+We denote by $\content \gets \client.\getContent(\transcript)$ the logical content induced by the operations in $T$; see Figure~\ref{} for its formal definition.
+Notice that $\getContent$ is deterministic, while $\Run$ is a randomized: a sequence of operations define a single logical state, but defines a probability distribution over physical states (since, recall, $\Send$ and $\Delete$ are themselves randomized).
+
+\paragraph{Defining secure client-side deletion.} Having introduced our primitive syntax, we now turn to defining security. Recall from Section~\ref{sec:threat-model} that, at a high-level, our goal is for physical device access to reveal nothing more about messages than the user's logical state (i.e., what is displayed in their user interface). So, we can formally cast these security goals as a form of \emph{history independence}~\cite{micciancio1997oblivious,naor2001anti}, that is, requiring that a client's memory representation does not reveal information about the operation history. History independence is natural motivation for our setting, as it bears close relationship with the general problem of deletion privacy; indeed, it has been the basis for other deletion definitions in contexts different from ours~\cite{cohen2023control}.
+
+Let us proceed to make this concrete. First, we say that transcripts $T_0$ and $T_1$ are \emph{equivalent} if they induce the same logical application content, i.e., if they lead to the same $\content$. For example, ... Formally:
+\begin{definition}
+    Let $\client$ be an E2EE client, and $T_0$ and $T_1$ be two transcripts. Let $\content_0 \gets \client.\getContent(T_0)$ and $\content_1 \gets \client.\getContent(T_1)$. $T_0$ and $T_1$ are \emph{equivalent} with respect to $\client$ if $\content_0 = \content_1$.
+\end{definition}
+Moving forward, we will use $T_0 \equiv_\client T_1$ as a shorthand to denote that $T_0$ and $T_1$ are equivalent. With this notion, we can then frame our security goals as requiring that \emph{any pair of equivalent transcripts leads to indistinguishable application states}.
+We term this security guarantee \emph{deletion indistinguishability} ($\SecDef$), which we define formally via the game shown in Figure~\ref{fig:ind-del-def}. It is based on standard left-or-right (LOR) indistinguishability security notions~\cite{}, but adapted to our deletion security goals. In more detail, $\SecDef$ provides two oracles to the adversary $\advA$: the first is an honest oracle, which allows $\advA$ to input a transcript and obtain the resulting application state; and the second is a \emph{challenge} oracle, which allows $\advA$ to input \emph{pairs} of transcripts and obtain the resulting state for one of them as determined by a randomly-chosen challenge bit, subject to the constraint that both challenge transcripts are equivalent. So, conceptually, $\SecDef$ can be though of as a blend of LOR indistinguishability and history independence. We define the advantage of a $\SecDef$ adversary $\advA$ over E2EE client $\client$ as 
+\[\Advantage{\SecDefShort}{\client}(\advA) = \big|2 \cdot \Prob{\SecDef^\advA_\client} - 1\big|\]
+
+\input{Figures/ind-del-def}
+
+More intuitively, $\SecDef$ represents an adversary that can generate arbitrary sequences of $\Send$ and $\Delete$ operations, and observe the resulting physical device state. Then, to break security, they must generate a sequence that leads to identical logical content (i.e., messages displayed in the UI) but different physical application states; in other words, as a result of deletions, the application state is revealing more information that the logical state, thus formally capturing our target threat model and security goals.
 
 
-\paragraph{Attempt \#1: history independence.}
+Notice that $\SecDef$ operates over transcripts as opposed to individual operations (that is, $\advA$ does not inspect the state at every $\Send$ or $\Delete$). \andres{Stretch goal}....
 
-\paragraph{Attempt \#2: leakage-based definition} \andres{Maybe say we try with explicit leakage function first, but this gets very complicated. This is similar to prior work in other contexts, so we use their approach of a ``relative'' security definition.}
+\paragraph{From transcript distance to IND-DEL.} While $\SecDef$ characterizes our desired security guarantees, it may be challenging to prove security in some settings. So, we now distill a simpler, higher-level property over transcripts, which we show is equivalent to $\SecDef$ security, thus providing a simpler basis to reason about deletion security. The basis for our simplification is the insight that, intuitively, $\SecDef$ can be thought of as measuring the \emph{statistical distance} between the distribution of application states induced by equivalent transcripts. So, we can bound $\Advantage{\SecDefShort}{}$ by the maximum statistical distance over all pairs of transcripts.
 
-\paragraph{Property-based security.}
+We refer to this property as \emph{state consistency}, reflecting the fact that application states are consistent for equal logical states. We formally define it as follows:
+\begin{definition}
+    E2EE client is \emph{$\epsilon$-state consistent} if, for any transcripts $\transcript_0$ and $\transcript_1$ such that $\transcript_0 \equiv_\client \transcript_1$, it follows that 
+    \[\delta\big(\client.\Run(\transcript_0), \client.\Run(\transcript_1)\big) \leq \epsilon\]
+    where $\delta$ denotes the total variation distance between both random variables.
+\end{definition}
 
-\paragraph{Formal analysis of our attacks}
-\andres{How our formalism recovers our attacks.}
+We then capture the relationship between $\SecDef$ and state consistency in the following simple theorem:
+\begin{theorem}
+    Let $\client$ be an E2EE client that is $\epsilon$-state consistent, and $\advA$ be an $\SecDef$ adversary that makes $q$ challenge oracle queries. It follows that
+    \[\Advantage{\SecDefShort}{\client}(\advA) \leq q \cdot \epsilon\]
+\end{theorem}
+We show the proof of this theorem in Appendix~\ref{}. 
+It follows from the fact that the total variation distance between two random variables is an upper bound on the advantage of any distinguisher that observes a sample from either~\cite{maurer2007indistinguishability}, and so $\epsilon-$ yields an upper bound on the distinguishing advantage for every challenge oracle query. 
+A standard hybrid argument then leads to the final bound.
 
+
+\paragraph{Leakage-based generalization.} Thus far, our $\SecDef$ definition represents a strong guarantee: application states must be \emph{identically distributed} for equivalent operation transcripts, allowing for not a single bit of information leakage. However, in practice, a small amount of well-defined leakage may be desirable (or even necessary) in some settings. For instance ...
+
+We thus relax our definition to allow for a controlled amount of information leakage. Drawing from other lines of work with leakage-based definitions (e.g., searchable encryption), we parametrize $\SecDef$ by a \emph{leakage function} $\leakage$, which ``filters'' adversarial challenge queries. 
+
+\andres{Equivalent with respect to L. Then, ChRun checks that they are equivalent with respect to L. State example of how IND-DEL is the (strong) identity leakage function.}
+
+\paragraph{Property-based security.} \andres{Stretch goal.}
+
+\paragraph{Analysis of vulnerabilities.} Our security model provides formal foundations to reason about deletion security, both in terms of analyzing vulnerabilities and evaluating proposed defenses. To exemplify this, we now cast our findings from Section~\ref{sec:attacks} as attacks against our definitions.
 
 \andres{Somewhere say that this allows us to formalize analyze attacks, as well as evaluating the security of defenses. Indeed, looking ahead we do this in section 7 with our proposed mitigations.}

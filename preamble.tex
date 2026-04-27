@@ -34,6 +34,7 @@
 %---------------------------------------------------------------------
 \usepackage{xcolor}
 \usepackage{hyperref}
+\usepackage{setspace}
 
 
 
@@ -42,18 +43,16 @@
 %---------------------------------------------------------------------
 \newcommand{\andres}[1]{{\small\textsf{\color{green}{[Andres: {#1}]}}}}
 \newcommand{\gray}[1]{\textcolor{gray}{#1}}
-
+\newcommand{\Prob}[1]{\Pr\left[\: #1 \:\right]}
 
 
 
 %---------------------------------------------------------------------
-% NOTATION
+% CASE STUDIES
 %---------------------------------------------------------------------
 
 \newcommand{\user}{\mathsf{U}}
-\newcommand{\client}{\mathsf{C}}
 \newcommand{\service}{\mathsf{S}}
-\newcommand{\appState}{st}
 \newcommand{\messagesTable}{\texttt{message}}
 \newcommand{\messagesIndexSegdirTable}{\texttt{message\_ftsv2\_segdir}}
 \newcommand{\messagesIndexSegmentsTable}{\texttt{message\_ftsv2\_segments}}
@@ -68,3 +67,96 @@
 \newcommand{\database}{D}
 \newcommand{\databaseWhatsApp}{\textsf{D}_{\textsf{w}}}
 \newcommand{\databaseSignal}{\textsf{D}_{\textsf{s}}}
+
+
+%---------------------------------------------------------------------
+% FORMALISM
+%---------------------------------------------------------------------
+
+\newcommand{\client}{\mathsf{C}}
+\newcommand{\Init}{\mathsf{Init}}
+\newcommand{\Send}{\mathsf{Send}}
+\newcommand{\Delete}{\mathsf{Delete}}
+\newcommand{\Run}{\mathsf{Run}}
+\newcommand{\getsr}{{\;{\leftarrow{\hspace*{-3pt}\raisebox{.75pt}{$\scriptscriptstyle\$$}}}\;}}
+\newcommand{\appState}{st}
+% \newcommand{\appStateUniverse}{\mathscr{S}}
+\newcommand{\appStateUniverse}{\mathcal{S}}
+\newcommand{\userId}{uid}
+\newcommand{\userIdUniverse}{\mathcal{I}_u}
+\newcommand{\messageId}{mid}
+\newcommand{\messageUniverse}{\mathcal{M}}
+\newcommand{\messageIdUniverse}{\mathcal{I}_m}
+\newcommand{\deletionMetadata}{E}
+\newcommand{\deletionMetadataUniverse}{\mathcal{D}}
+\newcommand{\transcript}{T}
+\newcommand{\content}{\mathbb{L}}
+\newcommand{\getContent}{\mathsf{Content}}
+
+
+%---------------------------------------------------------------------
+% SECURITY
+%---------------------------------------------------------------------
+\newcommand{\SecDef}{\textnormal{IND-DEL}}
+\newcommand{\SecDefShort}{\textup{ind-del}}
+
+\newcommand{\advA}{\mathcal{A}}
+\newcommand{\Advantage}[2]{\textnormal{Adv}^{#1}_{#2}}
+\newcommand{\leakage}{\mathcal{L}}
+
+
+\newcommand{\textOracle}[1]{\textup{\textsc{#1}}}
+\newcommand{\RunOracle}{\textOracle{Run}}
+\newcommand{\ChRunOracle}{\textOracle{ChRun}}
+
+
+
+
+%---------------------------------------------------------------------
+% ENVIRONMENTS
+%---------------------------------------------------------------------
+\newcommand{\procedurev}[1]{\underline{{#1}:}\smallskip}
+\newcommand{\cif}{\mathbf{if\;}}
+\newcommand{\creturn}{\mathbf{return\;}}
+
+\newlength{\saveparindent}
+\setlength{\saveparindent}{\parindent}
+\newlength{\saveparskip}
+\setlength{\saveparskip}{\parskip}
+
+\newcounter{ctr}
+\newcounter{savectr}
+\newcounter{ectr}
+
+\newenvironment{newitemize}{%
+	\begin{list}{\mbox{}\hspace{5pt}$\bullet$\hfill}{\labelwidth=15pt%
+			\labelsep=5pt \leftmargin=20pt \topsep=3pt%
+			\setlength{\listparindent}{\saveparindent}%
+			\setlength{\parsep}{\saveparskip}%
+			\setlength{\itemsep}{3pt} }}{\end{list}}
+
+
+\newenvironment{newenum}{%
+	\begin{list}{{\rm (\arabic{ctr})}\hfill}{\usecounter{ctr} \labelwidth=17pt%
+			\labelsep=5pt \leftmargin=22pt \topsep=3pt%
+			\setlength{\listparindent}{\saveparindent}%
+			\setlength{\parsep}{\saveparskip}%
+			\setlength{\itemsep}{2pt} }}{\end{list}}
+
+
+\newcommand{\gamesfontsize}{\footnotesize}
+\newcommand{\stretchval}{1.2}
+
+\newcommand{\mpage}[2]{\begin{minipage}{#1\textwidth} #2 \end{minipage}}
+\newcommand{\fpage}[2]{\framebox{\begin{minipage}{#1\textwidth}\setstretch{\stretchval}\gamesfontsize #2 \end{minipage}}}
+
+\newcommand{\fhpages}[3]{\fhpagess{#1}{#1}{#2}{#3}}
+\newcommand{\fhpagess}[4]{
+    \framebox{
+      \begin{tabular}[t]{c@{\hspace*{.5em}}c}
+		\begin{minipage}[t]{#1\textwidth}\setstretch{\stretchval}\gamesfontsize #3 \end{minipage}
+		&
+		\begin{minipage}[t]{#2\textwidth}\setstretch{\stretchval}\gamesfontsize #4 \end{minipage}
+		\end{tabular}
+    }
+	}
